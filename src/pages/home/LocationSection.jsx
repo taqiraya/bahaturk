@@ -1,0 +1,110 @@
+import ResponsiveImage from "../../components/ui/ResponsiveImage.jsx";
+import { featuredProject } from "../../api/client";
+
+const LocationSection = () => {
+  const icons = [
+    <ResponsiveImage src="images/airplane.svg" alt="airplane" className="" />,
+    <ResponsiveImage src="images/home.svg" alt="home" className="" />,
+    <ResponsiveImage src="images/location.svg" alt="location" className="" />,
+    <ResponsiveImage src="images/building.svg" alt="building" className="" />,
+  ];
+  const locationData = featuredProject?.location_mapping;
+  if (!locationData) {
+    return <div className="py-16 text-center">Section data not found.</div>;
+  }
+
+  return (
+    <section className="bahaturk-inter w-full bg-white py-16 sm:py-20 lg:py-24">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="w-full h-full flex flex-col lg:flex-row justify-between gap-6">
+          {/* left */}
+          <div className="w-full lg:w-3/5 flex flex-col justify-center items-start gap-0 sm:gap-2">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="h-[2px] sm:h-[3px] w-8 sm:w-10 bg-accent" />
+
+              <span className="text-base sm:text-lg font-semibold uppercase tracking-wide text-accent">
+                Location
+              </span>
+            </div>
+
+            <p className="mb-2 text-sm sm:text-lg uppercase text-text">
+              Connected to Kabul
+            </p>
+
+            <h2 className="text-2xl font-extrabold leading-10 sm:leading-14 sm:text-3xl md:text-4xl lg:text-6xl">
+              <span className="text-text">A Prime Location in</span>
+              <br />
+              <span className="text-accent">
+                {locationData?.city || "Kabul"}
+              </span>
+            </h2>
+
+            <p className="mt-5 max-w-full lg:max-w-[650px] text-base sm:text-lg text-justify leading-8 text-text font-medium font-inter-medium">
+              {locationData?.description ||
+                "Solh Residential Project is located in Makroyan 5, Kabul, with convenient access to the city's important destinations."}
+            </p>
+
+            {/* location cards */}
+            <div className="w-full mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {locationData.nearby_places.map((place, index) => (
+                <div
+                  key={place}
+                  className="
+                    flex
+                    min-h-[62px]
+                    items-center
+                    gap-3
+                    rounded-3xl
+                    border-2
+                    border-accent
+                    px-5
+                    py-5
+                    duration-300
+                    transition
+                    hover:shadow-[0_8px_25px_rgba(21,159,204,0.10)]
+                    hover:border-[2.5px]
+                    hover:-translate-y-1
+                "
+                >
+                  <div
+                    className="
+                      flex
+                      h-12
+                      w-12
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-full
+                      bg-accent/20
+                      text-accent
+                    "
+                  >
+                    {icons[index] || <span>{index + 1}</span>}
+                  </div>
+
+                  <span className="text-sm font-bold text-accent leading-7 sm:text-lg">
+                    {place}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* map */}
+          <div className="w-full lg:w-2/5 overflow-hidden rounded-2xl flex-3 ">
+            <iframe
+              title="Solh Residential Project location in Kabul"
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3286.3982141732367!2d69.2050572!3d34.5434716!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x38d16d0033e53685%3A0x7ae2e4ad2470459b!2z2YXaqdix2YjYsduM2KfZhiDZvtmG2KzZhQ!5e0!3m2!1sen!2s!4v1791634693545!5m2!1sen!2s"
+              allowFullScreen=""
+              loading="lazy"
+              referrerPolicy="strict-origin-when-cross-origin"
+              className="border-0 w-full h-full"
+            ></iframe>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default LocationSection;

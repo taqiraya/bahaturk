@@ -1,0 +1,40 @@
+name: Check and Package Node Website
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+  push:
+    branches: [ develop, main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Dependencies
+        run: npm ci
+      - name: Check JavaScript
+        run: npm run lint
+      - name: Check Website and API
+        run: npm test
+      - name: Build Website
+        run: npm run build
+      - name: Install Browser Engines
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Check Desktop and Mobile Browsers
+        run: npm run test:browser
+      - name: Prepare Complete Node Application
+        run: npm run release:node
+      - name: Save Node Hosting Release
+        uses: actions/upload-artifact@v4
+        with:
+          name: bahaturk-node-hosting
+          path: releases/
+          include-hidden-files: true
+          retention-days: 14
