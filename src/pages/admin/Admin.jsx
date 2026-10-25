@@ -141,7 +141,7 @@ export default function Admin() {
     </main>;
 
   const titles = { password: "تغییر رمز ادمین", messages: "پیام‌های تماس", footer: "فوتر و اطلاعات تماس" };
-  const navigation = [{ id: "footer", label: titles.footer, icon: PanelBottom }, { id: "password", label: titles.password, icon: KeyRound }, { id: "messages", label: titles.messages, icon: Inbox }];
+  const navigation = [{ id: "footer", label: titles.footer, icon: PanelBottom }, { id: "messages", label: titles.messages, icon: Inbox }, { id: "password", label: titles.password, icon: KeyRound }];
   return <main className={styles.panel} dir="rtl">
     {menuOpen && <button type="button" className={styles.backdrop} aria-label="بستن منوی مدیریت" onClick={() => setMenuOpen(false)} />}
     <aside ref={sidebar} id="admin-sidebar" className={`${styles.sidebar} ${menuOpen ? styles.sidebarOpen : ""}`} aria-label="سایدبار مدیریت" inert={mobile && !menuOpen ? true : undefined}>

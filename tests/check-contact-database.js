@@ -1,16 +1,20 @@
 // Explicit local MySQL integration check. All synthetic inserts are rolled back.
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import mysql from "mysql2/promise";
-import { parseEnv } from "node:util";
 import { startApp } from "../app.js";
-import { loadConfig, verifyPassword } from "../server/config.js";
+import { loadConfig, hashPassword } from "../server/config.js";
 import { connectDatabase, createContactRepository } from "../server/database.js";
 
 const root = resolve(import.meta.dirname, "..");
 const config = loadConfig(root);
+// Use an isolated in-memory login seed; never read or reset the owner's password.
+const access = { ADMIN_USERNAME: `integration-${randomUUID()}`, ADMIN_PASSWORD: randomUUID() };
+config.adminUsername = access.ADMIN_USERNAME;
+config.adminPasswordHash = hashPassword(access.ADMIN_PASSWORD);
+config.adminCredentialVersion = createHash("sha256").update(`${config.adminUsername}\0${config.adminPasswordHash}`).digest("hex");
 const dbJson = await readFile(resolve(root, "db.json"), "utf8");
 const database = await connectDatabase(config.database);
 const before = (await database.listMessages()).total;
@@ -28,13 +32,6 @@ try {
   const conflict = await fetch(base + "/contact-messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...input, message: "Different message" }) });
   assert.equal(conflict.status, 409);
   assert.equal((await fetch(base + "/admin/messages")).status, 401);
-  const accessFiles = (await readdir(root)).filter((name) => /^\.env\.admin-access(?:\.[\w-]+)?\.local$/.test(name)).sort();
-  let access;
-  for (const file of accessFiles) {
-    const candidate = parseEnv(await readFile(resolve(root, file), "utf8"));
-    if (await verifyPassword(candidate.ADMIN_PASSWORD, config.adminPasswordHash)) { access = candidate; break; }
-  }
-  assert.ok(access, "An existing private credential file must match the configured password.");
   const login = await fetch(base + "/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: access.ADMIN_USERNAME, password: access.ADMIN_PASSWORD }) });
   assert.equal(login.status, 200);
   const session = await login.json();

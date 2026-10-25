@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtemp, mkdir, writeFile, readFile, stat, copyFile, readdir } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, copyFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { startApp } from "../app.js";
 import { createResilientDatabase } from "../server/database.js";
 import { getClientIp } from "../server/client-ip.js";
-import { loadConfig, verifyPassword } from "../server/config.js";
+import { loadConfig, verifyPassword, hashPassword } from "../server/config.js";
 import { execFile } from "node:child_process";
 import { promisify, parseEnv } from "node:util";
 
@@ -59,12 +59,13 @@ test("lost local configuration recovers the SAME admin login without replacing c
   const filename = join(root, ".env.admin-access.local");
   const content = 'ADMIN_USERNAME=owner\nADMIN_PASSWORD="keep-this-existing-password"\n';
   await writeFile(filename, content);
-  const before = (await stat(filename)).mtimeMs;
   const config = loadConfig(root);
   assert.equal(config.adminUsername, "owner");
   assert.equal(await verifyPassword("keep-this-existing-password", config.adminPasswordHash), true);
-  assert.equal(await readFile(filename, "utf8"), content);
-  assert.equal((await stat(filename)).mtimeMs, before);
+  const secured = parseEnv(await readFile(filename, "utf8"));
+  assert.equal(secured.ADMIN_PASSWORD, undefined);
+  assert.equal(secured.ADMIN_PASSWORD_HASH, config.adminPasswordHash);
+  assert.equal(await verifyPassword("keep-this-existing-password", secured.ADMIN_PASSWORD_HASH), true);
   assert.ok((await readFile(join(root, ".env.local"), "utf8")).includes("ADMIN_PASSWORD_HASH="));
 });
 
@@ -83,15 +84,35 @@ test("explicit admin recovery retains old files and recovery chooses the new log
   for (const file of ["config.js", "admin-password.js"]) await copyFile(new URL(`../server/${file}`, import.meta.url), join(root, "server", file));
   const previous = 'ADMIN_USERNAME=owner\nADMIN_PASSWORD="previous-password"\n';
   await writeFile(join(root, ".env.admin-access.local"), previous);
-  await promisify(execFile)(process.execPath, [join(root, "server", "admin-password.js")]);
-  assert.equal(await readFile(join(root, ".env.admin-access.local"), "utf8"), previous);
+  const { stdout } = await promisify(execFile)(process.execPath, [join(root, "server", "admin-password.js")]);
+  const password = stdout.match(/New admin password \(shown once\): (\S+)/)[1];
+  const old = parseEnv(await readFile(join(root, ".env.admin-access.local"), "utf8"));
+  assert.equal(old.ADMIN_PASSWORD, undefined);
+  assert.equal(await verifyPassword("previous-password", old.ADMIN_PASSWORD_HASH), true);
   const files = (await readdir(root)).filter((name) => name.startsWith(".env.admin-access"));
   assert.equal(files.length, 2);
   const latest = files.find((name) => name !== ".env.admin-access.local");
   const login = parseEnv(await readFile(join(root, latest), "utf8"));
-  assert.equal(await verifyPassword(login.ADMIN_PASSWORD, loadConfig(root).adminPasswordHash), true);
+  assert.equal(login.ADMIN_PASSWORD, undefined);
+  assert.equal(await verifyPassword(password, loadConfig(root).adminPasswordHash), true);
   // Simulate loss of the hash config in a DIFFERENT temporary folder. No file is deleted.
   const recovered = await mkdtemp(join(tmpdir(), "bahaturk-new-login-"));
   for (const file of files) await copyFile(join(root, file), join(recovered, file));
-  assert.equal(await verifyPassword(login.ADMIN_PASSWORD, loadConfig(recovered).adminPasswordHash), true);
+  assert.equal(await verifyPassword(password, loadConfig(recovered).adminPasswordHash), true);
+});
+
+
+test("recovery file migration preserves the exact configured seed and active login", async () => {
+  const root = await mkdtemp(join(tmpdir(), "bahaturk-stable-seed-"));
+  const encoded = hashPassword("unchanged-owner-password");
+  const env = 'ADMIN_USERNAME=owner\nADMIN_PASSWORD_HASH=' + encoded + '\n';
+  await writeFile(join(root, ".env.local"), env);
+  await writeFile(join(root, ".env.admin-access.local"), 'ADMIN_USERNAME=owner\nADMIN_PASSWORD=unchanged-owner-password\n');
+  const config = loadConfig(root);
+  assert.equal(config.adminPasswordHash, encoded);
+  assert.equal(await readFile(join(root, ".env.local"), "utf8"), env);
+  const recovery = parseEnv(await readFile(join(root, ".env.admin-access.local"), "utf8"));
+  assert.equal(recovery.ADMIN_PASSWORD_HASH, encoded);
+  assert.equal(recovery.ADMIN_PASSWORD, undefined);
+  assert.equal(loadConfig(root).adminCredentialVersion, config.adminCredentialVersion);
 });

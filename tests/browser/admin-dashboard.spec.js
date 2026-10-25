@@ -21,6 +21,7 @@ test("admin has exactly three management sections and preserves received message
   await expect(page.locator("[data-route-loader]")).toHaveCount(0);
   await openAdminMenu(page);
   await expect(page.getByRole("navigation", { name: "بخش‌های مدیریت" }).getByRole("button")).toHaveCount(3);
+  await expect(page.getByRole("navigation", { name: "بخش‌های مدیریت" }).getByRole("button")).toHaveText(["فوتر و اطلاعات تماس", "پیام‌های تماس", "تغییر رمز ادمین"]);
   await expect(page.getByRole("button", { name: "داشبورد", exact: true })).toHaveCount(0);
   await selectAdminSection(page, "پیام‌های تماس");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

@@ -35,7 +35,7 @@ Run `npm run build`, then `npm run release:node`. The latter creates a new folde
 
 The public pages and admin login page can load while MySQL is offline. API operations return a temporary error without reporting false success. After MySQL returns, later API requests reconnect automatically; the server does not save messages to a secondary file.
 
-If only the local `.env.local` is missing, startup restores the same admin login from the most recent private admin access file, without replacing it. For explicit password recovery, run `node server/admin-password.js` in the application folder. It saves a new private credential file, appends the corresponding hash to `.env.local`, and retains old files and all database records. If credentials are configured in hosting environment variables, update those values in cPanel and restart; environment variables take precedence over local files.
+If only the local `.env.local` is missing, startup restores the same admin login from the most recent private admin access file, without replacing it. For explicit password recovery, run `node server/admin-password.js` in the application folder. It displays the new password once in the owner terminal, saves only its scrypt hash in a new private recovery file, and appends that hash to `.env.local`. Legacy recovery files are converted to hashes without removing their credential history; all database records remain intact. If credentials are configured in hosting environment variables, update those values in cPanel and restart; environment variables take precedence over local files.
 
 The release artifact contains application code and public assets only. It is not a database backup and does not change the project's existing backup or page metadata configuration.
 

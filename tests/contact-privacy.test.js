@@ -1,0 +1,36 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { readFile } from "node:fs/promises";
+
+test("contact drafts stay in the tab, migrate safely, and confirmed personal data is not persisted", async (t) => {
+  const local = new Map(), session = new Map();
+  const storage = (values) => ({ get length() { return values.size; }, key(i) { return [...values.keys()][i] ?? null; }, getItem(k) { return values.get(k) ?? null; }, setItem(k, v) { values.set(k, v); }, removeItem(k) { values.delete(k); } });
+  const old = [Object.getOwnPropertyDescriptor(globalThis, "localStorage"), Object.getOwnPropertyDescriptor(globalThis, "sessionStorage")];
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: storage(local) });
+  Object.defineProperty(globalThis, "sessionStorage", { configurable: true, value: storage(session) });
+  t.after(() => ["localStorage", "sessionStorage"].forEach((key, i) => { if (old[i]) Object.defineProperty(globalThis, key, old[i]); else delete globalThis[key]; }));
+  const source = (await readFile(new URL("../src/api/drafts.js", import.meta.url), "utf8")).replaceAll("import.meta.env.BASE_URL", '"/"');
+  const api = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+  const legacy = "bahaturk-contact-draft:/BahaTurk/:tab:old";
+  const draft = { form: { fullName: "Private unsent text" }, requestId: "retry-once", submitted: false };
+  local.set(legacy, JSON.stringify(draft));
+  local.set(legacy + "-sent", JSON.stringify({ ...draft, submitted: true }));
+  const footer = "bahaturk-footer-draft:/:owner:tab:old";
+  local.set(footer, "unchanged");
+  assert.equal(api.readDraft(api.contactDraftKey).requestId, "retry-once");
+  assert.equal(local.has(legacy), false);
+  assert.equal(local.get(footer), "unchanged");
+  assert.equal(session.get(legacy + "-sent").includes("Private unsent text"), false);
+  assert.equal(api.keepDraft(api.contactDraftKey, draft), true);
+  assert.equal(api.readDraft(api.contactDraftKey).form.fullName, draft.form.fullName);
+  assert.equal(api.keepDraft(api.contactDraftKey, { ...draft, submitted: true }), true);
+  assert.equal(api.readDraft(api.contactDraftKey).form, undefined);
+  assert.equal(JSON.stringify([...session.values()]).includes("Private unsent text"), false);
+  const previous = sessionStorage.setItem;
+  local.set(legacy + "-blocked", JSON.stringify(draft));
+  sessionStorage.setItem = () => { throw new Error("unavailable"); };
+  assert.equal(api.migrateContactDrafts(), false);
+  assert.equal(local.has(legacy + "-blocked"), true, "preserve unsent text if transfer fails");
+  assert.equal(api.keepDraft(api.contactDraftKey, draft), false);
+  sessionStorage.setItem = previous;
+});

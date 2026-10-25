@@ -19,6 +19,21 @@ export async function verifyPassword(password, encoded) {
   return timingSafeEqual(actual, Buffer.from(hash, "hex"));
 }
 
+export function secureRecoveryFiles(root, preferredHash = "") {
+  const files = readdirSync(root).filter((name) => /^\.env\.admin-access(?:\.[\w-]+)?\.local$/.test(name));
+  for (const name of files) {
+    const path = resolve(root, name);
+    const saved = parseEnv(readFileSync(path, "utf8"));
+    if (!saved.ADMIN_PASSWORD) continue;
+    let encoded = saved.ADMIN_PASSWORD_HASH;
+    const [salt, hash] = preferredHash.split(":");
+    if (salt && /^[a-f0-9]{128}$/.test(hash || "") && timingSafeEqual(scryptSync(saved.ADMIN_PASSWORD, salt, 64), Buffer.from(hash, "hex"))) encoded = preferredHash;
+    saved.ADMIN_PASSWORD_HASH = encoded || hashPassword(saved.ADMIN_PASSWORD);
+    delete saved.ADMIN_PASSWORD;
+    writeFileSync(path, Object.entries(saved).map(([key, value]) => `${key}=${JSON.stringify(value)}`).join("\n") + "\n", { mode: 0o600 });
+  }
+}
+
 export function loadConfig(root) {
   let values = {};
   for (const file of [".env", ".env.local"]) {
@@ -28,6 +43,7 @@ export function loadConfig(root) {
   // A password supplied by the host supersedes a hash in a lower-priority file.
   if (process.env.ADMIN_PASSWORD && !process.env.ADMIN_PASSWORD_HASH) delete values.ADMIN_PASSWORD_HASH;
   values = { ...values, ...process.env };
+  secureRecoveryFiles(root, values.ADMIN_PASSWORD_HASH);
   const production = process.argv.includes("--production") || (!process.argv.includes("--dev") && values.NODE_ENV !== "development");
   if (!values.ADMIN_PASSWORD_HASH && !values.ADMIN_PASSWORD) {
     const latestAccessFile = readdirSync(root)
@@ -39,9 +55,9 @@ export function loadConfig(root) {
     // owner's credential file or generate a different password silently.
     if (existsSync(accessFile)) {
       const saved = parseEnv(readFileSync(accessFile, "utf8"));
-      if (!saved.ADMIN_PASSWORD) throw new Error("Admin access file has no password. Run node server/admin-password.js to recover access.");
+      if (!saved.ADMIN_PASSWORD_HASH) throw new Error("Admin access file has no password hash. Run node server/admin-password.js to recover access.");
       values.ADMIN_USERNAME ||= saved.ADMIN_USERNAME || "admin";
-      values.ADMIN_PASSWORD_HASH = hashPassword(saved.ADMIN_PASSWORD);
+      values.ADMIN_PASSWORD_HASH = saved.ADMIN_PASSWORD_HASH;
       appendFileSync(resolve(root, ".env.local"), `\nADMIN_USERNAME=${JSON.stringify(values.ADMIN_USERNAME)}\nADMIN_PASSWORD_HASH=${values.ADMIN_PASSWORD_HASH}\n`, { mode: 0o600 });
     } else {
       if (production) throw new Error("Configure ADMIN_USERNAME and ADMIN_PASSWORD_HASH before production startup.");
@@ -50,9 +66,10 @@ export function loadConfig(root) {
       values.ADMIN_PASSWORD_HASH = hashPassword(password);
       // Only append missing local credentials; never replace an existing configuration.
       // This credential file is ignored by Git and denied by the web server.
-      writeFileSync(accessFile, `ADMIN_USERNAME=${JSON.stringify(values.ADMIN_USERNAME)}\nADMIN_PASSWORD=${password}\n`, { flag: "wx", mode: 0o600 });
+      writeFileSync(accessFile, `ADMIN_USERNAME=${JSON.stringify(values.ADMIN_USERNAME)}\nADMIN_PASSWORD_HASH=${values.ADMIN_PASSWORD_HASH}\n`, { flag: "wx", mode: 0o600 });
       appendFileSync(resolve(root, ".env.local"), `\nADMIN_USERNAME=${JSON.stringify(values.ADMIN_USERNAME)}\nADMIN_PASSWORD_HASH=${values.ADMIN_PASSWORD_HASH}\n`, { mode: 0o600 });
-      console.log("Initial admin login saved in .env.admin-access.local (keep this file private).");
+      console.log(`Initial admin password (shown once): ${password}`);
+      console.log("Only its scrypt hash is saved in the private admin recovery file.");
     }
   }
   const config = {

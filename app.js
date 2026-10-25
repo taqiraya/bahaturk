@@ -71,7 +71,7 @@ export async function startApp(overrides = {}) {
       res.writeHead(308, { Location: target + url.search }).end(); return;
     }
     const relative = pathname.startsWith(BASE) ? pathname.slice(BASE.length) : pathname.slice(1);
-    if (/^\.seo-(?:pages|index)\.json(?:\.|$)/.test(relative)) { res.writeHead(404).end(); return; }
+    if (/(?:^|[\\/])\./.test(relative)) { res.writeHead(404).end(); return; }
     // Neither local credentials nor server source are public assets.
     if (/(?:^|\/)\.(?:env|git)|(?:^|\/)\.(?:npm-cache|pnpm-store|runtime|media-originals)(?:\/|$)|(?:^|\/)server(?:\/|$)|(?:^|\/)app\.js$/.test(relative)) {
       res.writeHead(404).end(); return;

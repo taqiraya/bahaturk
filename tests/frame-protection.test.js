@@ -19,6 +19,9 @@ test("public, admin, API, missing and redirected responses prohibit framing with
       assert.equal(response.headers.get("x-node-version"), null, path);
     }
     const home = await (await fetch(base + "/BahaTurk/")).text();
+    for (const path of ["/.build-state.json", "/.build-state.json.br", "/%2ebuild-state.json", "/BahaTurk/.build-state.json", "/.env.admin-access.local", "/.seo-pages.json", "/.git/config"]) {
+      assert.equal((await fetch(base + path)).status, 404, path);
+    }
     assert.match(home, /<iframe[^>]*[\s\S]*?https:\/\/www.google.com\/maps\/embed/);
     assert.match(home, /Building Afghanistan/);
   } finally { await app.close(); }

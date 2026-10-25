@@ -66,6 +66,10 @@ test("contact drafts and retry identifiers survive refresh; navigation asks befo
   await page.getByRole("button", { name: "Send Message", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("received by our team");
   expect(retriedId).toBe(firstId);
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain("Retained draft");
+  expect(await page.evaluate(() => JSON.stringify(sessionStorage))).not.toContain("Retained draft");
+  await page.reload();
+  await expect(page.getByLabel("Full Name", { exact: true })).toHaveValue("");
 });
 
 test("unsaved footer edits survive refresh without writing to the database", async ({ page }) => {

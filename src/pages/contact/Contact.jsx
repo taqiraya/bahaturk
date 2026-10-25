@@ -40,7 +40,7 @@ export default function Contact() {
       setFeedback({ success: true, text: "Thank you. Your message has been received by our team." });
       setDirty(false);
       keepDraft(contactDraftKey, { form, requestId: submissionId.current, submitted: true });
-      // Keep text and the retry identifier across refreshes as well as failed requests.
+      // Only unsent retries retain personal data in this tab; confirmed messages stay in MySQL.
     } catch (error) {
       setFeedback({ success: false, text: error.message });
     } finally {
